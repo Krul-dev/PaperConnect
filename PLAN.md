@@ -12,7 +12,7 @@
 
 ---
 
-## Phase 1: Citation Graph Tool (CURRENT)
+## Phase 1: Citation Graph Tool (DONE)
 
 **Objective:** Build an interactive, directed citation graph of the ~75 articles in the Zotero collection. Use it to:
 - Identify which articles are central (many connections)
@@ -23,9 +23,9 @@
 **Approach:**
 - Language: Python
 - Data source: Export from Zotero (.bib already in repo)
-- Citation lookup: Semantic Scholar and/or OpenAlex API (by DOI/title)
-- Manual fallback for articles not found via API
-- Visualization: Interactive (likely pyvis or similar) — runs locally in browser
+- Citation lookup: OpenAlex API (by DOI, with title fallback)
+- Forward + reverse citation matching, canonical version resolution
+- Visualization: Interactive pyvis — runs locally in browser
 - Graph is directed: edge from A to B means "A cites B"
 
 **Input:** `SIMA PERSONAL.bib`
@@ -33,13 +33,27 @@
 **Output:** Interactive HTML graph + summary of isolated/central nodes
 
 ### Tasks
-- [ ] Parse .bib file, extract metadata (DOI, title, authors, year)
-- [ ] Query Semantic Scholar / OpenAlex for each article's references
-- [ ] Match references against other articles in the collection
-- [ ] Build directed graph (networkx)
-- [ ] Generate interactive visualization (pyvis or Plotly)
-- [ ] Export list of isolated nodes (no connections to other articles in collection)
-- [ ] Export list of most-cited nodes within the collection (hubs)
+- [x] Parse .bib file, extract metadata (DOI, title, authors, year)
+- [x] Query OpenAlex for each article's references
+- [x] Match references against other articles in the collection
+- [x] Build directed graph (networkx)
+- [x] Generate interactive visualization (pyvis)
+- [x] Export list of isolated nodes (no connections to other articles in collection)
+- [x] Export list of most-cited nodes within the collection (hubs)
+
+---
+
+## Phase 1.5: Citation Graph Improvements (CURRENT)
+
+**Objective:** Fix known issues and add usability features to the citation graph.
+
+### Bug fixes
+- [ ] Investigate missing edge: "The estimation of multivariate normal density functions using incomplete data" should connect to other papers in the collection but doesn't — likely an OpenAlex matching issue
+- [ ] Check if similar matching failures affect other papers
+
+### New features
+- [ ] Search bar: text input to find and highlight/zoom to a node by name
+- [ ] Timeline view: sort nodes by publication year on one axis while keeping citation arrows (via vis.js position constraints)
 
 ---
 
