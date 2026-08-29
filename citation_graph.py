@@ -1,0 +1,480 @@
+"""
+Citation Graph Builder for SIMA Research
+Parses a .bib file, queries OpenAlex for citation relationships,
+and generates an interactive directed graph visualization.
+"""
+
+import json
+import time
+import re
+from pathlib import Path
+
+import bibtexparser
+import networkx as nx
+import requests
+from pyvis.network import Network
+
+
+BIB_FILE = Path("SIMA PERSONAL.bib")
+OUTPUT_HTML = Path("citation_graph.html")
+CACHE_FILE = Path("openalex_cache.json")
+
+OPENALEX_BASE = "https://api.openalex.org"
+POLITE_EMAIL = "sima.research@example.com"
+
+
+def parse_bib(path):
+    """Parse .bib file and return list of entries with key, title, doi, year, authors."""
+    with open(path, encoding="utf-8") as f:
+        parser = bibtexparser.bparser.BibTexParser(common_strings=True)
+        library = bibtexparser.load(f, parser=parser)
+
+    entries = []
+    for entry in library.entries:
+        doi = entry.get("doi", "").strip().rstrip(".")
+        if doi:
+            doi = re.sub(r'^https?://(dx\.)?doi\.org/', '', doi)
+
+        authors_raw = entry.get("author", "")
+        first_author = authors_raw.split(" and ")[0].split(",")[0].strip() if authors_raw else ""
+
+        year = entry.get("year", "")
+        title = entry.get("title", "").replace("{", "").replace("}", "")
+
+        label = f"{first_author} {year}" if first_author else title[:30]
+
+        entries.append({
+            "key": entry.get("ID", ""),
+            "title": title,
+            "doi": doi,
+            "year": year,
+            "first_author": first_author,
+            "label": label,
+            "authors": authors_raw,
+        })
+    return entries
+
+
+def load_cache():
+    if CACHE_FILE.exists():
+        with open(CACHE_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_cache(cache):
+    with open(CACHE_FILE, "w") as f:
+        json.dump(cache, f, indent=2)
+
+
+def query_openalex_by_doi(doi, cache):
+    """Get OpenAlex work ID and referenced_works by DOI."""
+    if not doi:
+        return None
+
+    cache_key = f"doi:{doi}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    url = f"{OPENALEX_BASE}/works/doi:{doi}"
+    params = {"mailto": POLITE_EMAIL}
+
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            result = {
+                "openalex_id": data.get("id", ""),
+                "referenced_works": data.get("referenced_works", []),
+                "title": data.get("title", ""),
+            }
+            cache[cache_key] = result
+            return result
+        else:
+            cache[cache_key] = None
+            return None
+    except requests.RequestException:
+        return None
+
+
+def query_openalex_by_title(title, cache):
+    """Fallback: search by title if DOI is missing."""
+    if not title:
+        return None
+
+    cache_key = f"title:{title[:80]}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    url = f"{OPENALEX_BASE}/works"
+    params = {
+        "filter": f'title.search:"{title[:100]}"',
+        "mailto": POLITE_EMAIL,
+    }
+
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            results = data.get("results", [])
+            if results:
+                work = results[0]
+                result = {
+                    "openalex_id": work.get("id", ""),
+                    "referenced_works": work.get("referenced_works", []),
+                    "title": work.get("title", ""),
+                }
+                cache[cache_key] = result
+                return result
+        cache[cache_key] = None
+        return None
+    except requests.RequestException:
+        return None
+
+
+def find_canonical_version(title, first_author, known_id, cache):
+    """Find the most-cited version of a paper on OpenAlex.
+
+    Many papers exist as multiple OpenAlex records (working paper vs journal,
+    preprint vs publication). We want the canonical (most-cited) version so that
+    forward and reverse matching catches all citations.
+
+    Example: Rubin 1975 (ETS, 68 cites) vs Rubin 1976 (Biometrika, 9806 cites).
+    """
+    cache_key = f"canonical:{known_id}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    # Search for same title + author, pick the most cited version
+    search_title = title[:80].replace('"', '')
+    author_last = first_author.split()[-1] if first_author else ""
+
+    url = f"{OPENALEX_BASE}/works"
+    params = {
+        "filter": f'title.search:"{search_title}"',
+        "sort": "cited_by_count:desc",
+        "per_page": 5,
+        "mailto": POLITE_EMAIL,
+    }
+
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        if resp.status_code == 200:
+            results = resp.json().get("results", [])
+            for w in results:
+                w_id = w.get("id", "")
+                if w_id == known_id:
+                    continue
+                # Check author match (loose)
+                w_authors = w.get("authorships", [])
+                author_names = [a.get("author", {}).get("display_name", "").lower() for a in w_authors]
+                if author_last and any(author_last.lower() in name for name in author_names):
+                    # Found a more-cited version by same author
+                    if w.get("cited_by_count", 0) > 100:
+                        result = w_id
+                        cache[cache_key] = result
+                        return result
+        cache[cache_key] = None
+        return None
+    except requests.RequestException:
+        cache[cache_key] = None
+        return None
+
+
+def query_cited_by(openalex_id, our_ids, cache):
+    """Reverse lookup: ask OpenAlex which works in our collection cite this article."""
+    cache_key = f"cited_by:{openalex_id}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    short_id = openalex_id.replace("https://openalex.org/", "")
+    url = f"{OPENALEX_BASE}/works"
+    params = {
+        "filter": f"cites:{short_id}",
+        "per_page": 200,
+        "select": "id",
+        "mailto": POLITE_EMAIL,
+    }
+
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            citers = [w["id"] for w in data.get("results", [])]
+            relevant = [c for c in citers if c in our_ids]
+            cache[cache_key] = relevant
+            return relevant
+        else:
+            cache[cache_key] = []
+            return []
+    except requests.RequestException:
+        return []
+
+
+def build_graph(entries):
+    """Query OpenAlex for each entry and build citation edges within the collection.
+
+    Uses two methods to find edges:
+    1. Forward: check each article's referenced_works list against our collection IDs
+    2. Reverse: for each article, ask OpenAlex who in our collection cites it
+       (catches multi-version papers like Rubin 1975/1976)
+    """
+    cache = load_cache()
+    openalex_map = {}  # openalex_id -> entry key
+    entry_data = {}    # entry key -> openalex result
+
+    print(f"Looking up {len(entries)} articles on OpenAlex...")
+    print()
+
+    found = 0
+    not_found = []
+
+    for i, entry in enumerate(entries):
+        result = query_openalex_by_doi(entry["doi"], cache)
+        if not result:
+            result = query_openalex_by_title(entry["title"], cache)
+
+        if result and result.get("openalex_id"):
+            openalex_map[result["openalex_id"]] = entry["key"]
+            entry_data[entry["key"]] = result
+            found += 1
+            status = "OK"
+        else:
+            not_found.append(entry)
+            status = "NOT FOUND"
+
+        print(f"  [{i+1}/{len(entries)}] {entry['label']} — {status}")
+
+        # Save cache after every 5 queries (so partial progress is kept)
+        if (i + 1) % 5 == 0:
+            save_cache(cache)
+
+        # Rate limiting: OpenAlex polite pool allows 10 req/s
+        time.sleep(0.12)
+
+    save_cache(cache)
+
+    print(f"\nFound {found}/{len(entries)} articles on OpenAlex.")
+    if not_found:
+        print(f"Not found ({len(not_found)}):")
+        for e in not_found:
+            print(f"  - {e['label']}: {e['title'][:60]}")
+
+    # Build graph nodes
+    G = nx.DiGraph()
+
+    for entry in entries:
+        G.add_node(entry["key"], label=entry["label"], title=entry["title"],
+                   year=entry["year"], first_author=entry["first_author"])
+
+    # Pass 0: Find canonical (most-cited) versions for each article
+    # This handles papers published in multiple venues (e.g., working paper + journal)
+    print("\n  Pass 0: Finding canonical versions...")
+    canonical_map = {}  # canonical_id -> entry key (additional IDs to check)
+    for i, entry in enumerate(entries):
+        if entry["key"] not in entry_data:
+            continue
+        data = entry_data[entry["key"]]
+        oa_id = data.get("openalex_id", "")
+        canonical = find_canonical_version(
+            entry["title"], entry["first_author"], oa_id, cache
+        )
+        if canonical and canonical not in openalex_map:
+            canonical_map[canonical] = entry["key"]
+            print(f"    {entry['label']}: found alternate version {canonical}")
+
+        if (i + 1) % 5 == 0:
+            save_cache(cache)
+        time.sleep(0.12)
+
+    save_cache(cache)
+    print(f"  Found {len(canonical_map)} alternate versions")
+
+    # Merge canonical IDs into our lookup map
+    all_id_to_key = dict(openalex_map)
+    all_id_to_key.update(canonical_map)
+    our_ids = set(all_id_to_key.keys())
+
+    # Pass 1: Forward matching (referenced_works)
+    print("\n  Pass 1: Forward matching (referenced_works)...")
+    forward_edges = 0
+    for entry in entries:
+        if entry["key"] not in entry_data:
+            continue
+        refs = entry_data[entry["key"]].get("referenced_works", [])
+        for ref_id in refs:
+            if ref_id in all_id_to_key:
+                target_key = all_id_to_key[ref_id]
+                if target_key != entry["key"]:
+                    G.add_edge(entry["key"], target_key)
+                    forward_edges += 1
+
+    print(f"  Found {forward_edges} edges from forward matching")
+
+    # Pass 2: Reverse lookup (cited_by) for both original and canonical IDs
+    all_ids_to_check = {}
+    for key, data in entry_data.items():
+        oa_id = data.get("openalex_id")
+        if oa_id:
+            all_ids_to_check[oa_id] = key
+    for canonical_id, key in canonical_map.items():
+        all_ids_to_check[canonical_id] = key
+
+    print(f"\n  Pass 2: Reverse citation lookup ({len(all_ids_to_check)} IDs)...")
+    reverse_edges = 0
+    for i, (oa_id, key) in enumerate(all_ids_to_check.items()):
+        citers_in_collection = query_cited_by(oa_id, our_ids, cache)
+        for citer_id in citers_in_collection:
+            if citer_id in all_id_to_key:
+                citer_key = all_id_to_key[citer_id]
+                if citer_key != key and not G.has_edge(citer_key, key):
+                    G.add_edge(citer_key, key)
+                    reverse_edges += 1
+
+        if (i + 1) % 5 == 0:
+            save_cache(cache)
+
+        print(f"    [{i+1}/{len(all_ids_to_check)}] {key[:30]}...")
+        time.sleep(0.12)
+
+    save_cache(cache)
+    total_edges = forward_edges + reverse_edges
+    print(f"\n  Forward edges: {forward_edges}")
+    print(f"  Reverse edges (new): {reverse_edges}")
+    print(f"\nGraph: {G.number_of_nodes()} nodes, {total_edges} total edges")
+    return G, not_found
+
+
+def visualize(G, entries, output_path):
+    """Create interactive HTML visualization with pyvis."""
+    net = Network(
+        height="900px",
+        width="100%",
+        directed=True,
+        bgcolor="#1a1a2e",
+        font_color="white",
+    )
+    net.barnes_hut(gravity=-3000, spring_length=150, spring_strength=0.01)
+
+    # Color nodes by era
+    def get_color(year):
+        try:
+            y = int(year)
+        except (ValueError, TypeError):
+            return "#888888"
+        if y < 1980:
+            return "#e74c3c"  # red — foundational
+        elif y < 2000:
+            return "#f39c12"  # orange — classical
+        elif y < 2015:
+            return "#2ecc71"  # green — traditional ML
+        elif y < 2022:
+            return "#3498db"  # blue — early deep learning
+        else:
+            return "#9b59b6"  # purple — recent/generative
+
+    # Size by in-degree (how many articles in collection cite this one)
+    in_degrees = dict(G.in_degree())
+    max_in = max(in_degrees.values()) if in_degrees else 1
+
+    for node in G.nodes():
+        data = G.nodes[node]
+        in_deg = in_degrees.get(node, 0)
+        out_deg = G.out_degree(node)
+        size = 15 + (in_deg / max(max_in, 1)) * 35
+
+        hover = (
+            f"<b>{data.get('label', node)}</b><br>"
+            f"{data.get('title', '')[:80]}<br>"
+            f"Year: {data.get('year', '?')}<br>"
+            f"Cited by {in_deg} in collection | Cites {out_deg} in collection"
+        )
+
+        net.add_node(
+            node,
+            label=data.get("label", node),
+            title=hover,
+            size=size,
+            color=get_color(data.get("year")),
+        )
+
+    for src, dst in G.edges():
+        net.add_edge(src, dst, color="#555555", arrows="to")
+
+    net.set_options("""
+    {
+      "interaction": {
+        "hover": true,
+        "navigationButtons": true,
+        "keyboard": true
+      },
+      "physics": {
+        "barnesHut": {
+          "gravitationalConstant": -3000,
+          "springLength": 150,
+          "springConstant": 0.01
+        }
+      }
+    }
+    """)
+
+    net.save_graph(str(output_path))
+    print(f"\nVisualization saved to: {output_path}")
+    print("Open it in your browser to explore the graph.")
+
+
+def print_summary(G):
+    """Print useful stats about the graph."""
+    print("\n" + "=" * 60)
+    print("GRAPH SUMMARY")
+    print("=" * 60)
+
+    # Most cited within collection
+    in_deg = sorted(G.in_degree(), key=lambda x: x[1], reverse=True)
+    print("\nMost cited within your collection (hubs):")
+    for node, deg in in_deg[:10]:
+        if deg > 0:
+            data = G.nodes[node]
+            print(f"  {deg} citations <- {data.get('label', node)}: {data.get('title', '')[:50]}")
+
+    # Most references to other articles in collection
+    out_deg = sorted(G.out_degree(), key=lambda x: x[1], reverse=True)
+    print("\nArticles referencing the most others in your collection:")
+    for node, deg in out_deg[:10]:
+        if deg > 0:
+            data = G.nodes[node]
+            print(f"  {deg} references -> {data.get('label', node)}: {data.get('title', '')[:50]}")
+
+    # Isolated nodes (no connections at all)
+    isolated = [n for n in G.nodes() if G.in_degree(n) == 0 and G.out_degree(n) == 0]
+    if isolated:
+        print(f"\nIsolated articles (no connections within collection): {len(isolated)}")
+        for node in isolated:
+            data = G.nodes[node]
+            print(f"  - {data.get('label', node)}: {data.get('title', '')[:60]}")
+
+    print("\nColor legend:")
+    print("  Red    = Foundational (pre-1980)")
+    print("  Orange = Classical (1980-1999)")
+    print("  Green  = Traditional ML era (2000-2014)")
+    print("  Blue   = Early deep learning (2015-2021)")
+    print("  Purple = Recent / Generative (2022+)")
+    print()
+
+
+def main():
+    print("=" * 60)
+    print("CITATION GRAPH BUILDER — SIMA Research")
+    print("=" * 60)
+    print()
+
+    entries = parse_bib(BIB_FILE)
+    print(f"Parsed {len(entries)} entries from {BIB_FILE}")
+
+    G, not_found = build_graph(entries)
+    print_summary(G)
+    visualize(G, entries, OUTPUT_HTML)
+
+
+if __name__ == "__main__":
+    main()
