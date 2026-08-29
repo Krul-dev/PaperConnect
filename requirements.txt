@@ -1,0 +1,4 @@
+bibtexparser==1.4.4
+networkx==3.6.1
+pyvis==0.3.2
+requests==2.34.2

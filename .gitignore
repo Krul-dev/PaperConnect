@@ -1,3 +1,13 @@
-.venv/
+# Python
 __pycache__/
+*.pyc
+.venv/
+
+# Generated output
+citation_graph.html
+
+# Cached API data
 openalex_cache.json
+
+# Team notes (shared via other channels, not git)
+Bitacora.pdf
