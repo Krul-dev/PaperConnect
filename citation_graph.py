@@ -9,7 +9,12 @@ import time
 import re
 from pathlib import Path
 
+import base64
+from io import BytesIO
+
 import bibtexparser
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import networkx as nx
 import requests
 from pyvis.network import Network
@@ -345,6 +350,96 @@ def build_graph(entries):
     return G, not_found
 
 
+def generate_timeline_base64(G):
+    """Generate a timeline PNG of the citation graph and return it as a base64 string."""
+    era_colors = {
+        "Foundational (pre-1980)": "#e74c3c",
+        "Classical (1980-1999)": "#f39c12",
+        "Traditional ML (2000-2014)": "#2ecc71",
+        "Early deep learning (2015-2021)": "#3498db",
+        "Recent / Generative (2022+)": "#9b59b6",
+    }
+
+    def get_color(year):
+        try:
+            y = int(year)
+        except (ValueError, TypeError):
+            return "#888888"
+        if y < 1980:
+            return "#e74c3c"
+        elif y < 2000:
+            return "#f39c12"
+        elif y < 2015:
+            return "#2ecc71"
+        elif y < 2022:
+            return "#3498db"
+        else:
+            return "#9b59b6"
+
+    nodes_by_year = {}
+    for node in G.nodes():
+        data = G.nodes[node]
+        try:
+            year = int(data.get("year", 0))
+        except (ValueError, TypeError):
+            year = 0
+        if year not in nodes_by_year:
+            nodes_by_year[year] = []
+        nodes_by_year[year].append(node)
+
+    node_positions = {}
+    for year, year_nodes in nodes_by_year.items():
+        for i, node in enumerate(year_nodes):
+            node_positions[node] = (year, i)
+
+    in_degrees = dict(G.in_degree())
+    max_in = max(in_degrees.values()) if in_degrees else 1
+
+    fig, ax = plt.subplots(figsize=(20, 10), facecolor="#1a1a2e")
+    ax.set_facecolor("#1a1a2e")
+
+    for src, dst in G.edges():
+        if src in node_positions and dst in node_positions:
+            x1, y1 = node_positions[src]
+            x2, y2 = node_positions[dst]
+            ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
+                        arrowprops=dict(arrowstyle="->", color="#555555",
+                                        alpha=0.3, connectionstyle="arc3,rad=0.1"))
+
+    for node, (x, y) in node_positions.items():
+        data = G.nodes[node]
+        in_deg = in_degrees.get(node, 0)
+        size = 30 + (in_deg / max(max_in, 1)) * 200
+        color = get_color(data.get("year"))
+        ax.scatter(x, y, s=size, c=color, zorder=3, edgecolors="white", linewidths=0.5)
+        ax.annotate(data.get("label", node), (x, y), fontsize=6, color="white",
+                    ha="left", va="bottom", xytext=(4, 4), textcoords="offset points")
+
+    years = [y for y in nodes_by_year.keys() if y > 0]
+    if years:
+        ax.set_xlim(min(years) - 2, max(years) + 2)
+
+    ax.set_xlabel("Publication Year", color="white", fontsize=12)
+    ax.tick_params(colors="white")
+    ax.spines["bottom"].set_color("#555")
+    ax.spines["left"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.yaxis.set_visible(False)
+
+    legend_patches = [mpatches.Patch(color=c, label=l) for l, c in era_colors.items()]
+    ax.legend(handles=legend_patches, loc="upper left", fontsize=8,
+              facecolor="#16213e", edgecolor="#555", labelcolor="white")
+
+    plt.tight_layout()
+
+    buf = BytesIO()
+    fig.savefig(buf, format="png", dpi=150, facecolor="#1a1a2e")
+    plt.close(fig)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode("utf-8")
+
+
 def visualize(G, entries, output_path):
     """Create interactive HTML visualization with pyvis."""
     net = Network(
@@ -497,9 +592,34 @@ def visualize(G, entries, output_path):
     </script>
     """
 
+    print("  Generating timeline image...")
+    timeline_b64 = generate_timeline_base64(G)
+
+    timeline_html = """
+    <button id="timeline-btn" onclick="document.getElementById('timeline-overlay').style.display='flex'"
+      style="position:fixed; top:15px; right:15px; z-index:1000;
+      background:#16213e; color:white; border:1px solid #555; padding:8px 16px;
+      border-radius:8px; cursor:pointer; font-size:14px;
+      box-shadow:0 2px 10px rgba(0,0,0,0.5);"
+      onmouseenter="this.style.background='#2a3a5c'"
+      onmouseleave="this.style.background='#16213e'">
+      Timeline View
+    </button>
+    <div id="timeline-overlay" style="
+      display:none; position:fixed; top:0; left:0; width:100%%; height:100%%;
+      background:rgba(0,0,0,0.85); z-index:2000;
+      flex-direction:column; align-items:center; justify-content:center;">
+      <button onclick="document.getElementById('timeline-overlay').style.display='none'"
+        style="position:absolute; top:20px; right:30px; background:none;
+        border:none; color:white; font-size:28px; cursor:pointer;">&#x2715;</button>
+      <img src="data:image/png;base64,%s" style="max-width:95%%; max-height:90%%;
+        object-fit:contain; border-radius:8px;">
+    </div>
+    """ % timeline_b64
+
     with open(output_path) as f:
         html = f.read()
-    html = html.replace("</body>", search_bar_html + "</body>")
+    html = html.replace("</body>", search_bar_html + timeline_html + "</body>")
     with open(output_path, "w") as f:
         f.write(html)
 
