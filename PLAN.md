@@ -53,7 +53,7 @@
 
 ### New features
 - [x] Search bar: autocomplete dropdown that filters and highlights matching nodes, click to zoom
-- [ ] Timeline view: sort nodes by publication year on one axis while keeping citation arrows (via vis.js position constraints)
+- [x] Timeline view: static matplotlib timeline (papers on year axis with citation arrows), accessible via overlay button in the main graph page
 
 ---
 
