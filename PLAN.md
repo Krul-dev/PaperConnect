@@ -52,7 +52,7 @@
 - [x] Check if similar matching failures affect other papers — fix applies globally to all papers in the collection
 
 ### New features
-- [ ] Search bar: text input to find and highlight/zoom to a node by name
+- [x] Search bar: autocomplete dropdown that filters and highlights matching nodes, click to zoom
 - [ ] Timeline view: sort nodes by publication year on one axis while keeping citation arrows (via vis.js position constraints)
 
 ---
