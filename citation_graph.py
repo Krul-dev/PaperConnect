@@ -419,6 +419,90 @@ def visualize(G, entries, output_path):
     """)
 
     net.save_graph(str(output_path))
+
+    search_bar_html = """
+    <div id="search-container" style="
+        position: fixed; top: 15px; left: 15px; z-index: 1000;
+        background: #16213e; padding: 10px 15px; border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.5); width: 300px;">
+      <input type="text" id="search-input" placeholder="Search papers..."
+        autocomplete="off"
+        style="padding: 6px 10px; border: 1px solid #555; border-radius: 4px;
+        background: #1a1a2e; color: white; font-size: 14px; width: 100%;
+        box-sizing: border-box; outline: none;"
+        onfocus="this.style.borderColor='#3498db'"
+        onblur="setTimeout(function(){document.getElementById('search-input').style.borderColor='#555'},200)">
+      <div id="suggestions" style="
+        max-height: 250px; overflow-y: auto; margin-top: 5px;
+        display: none; border-radius: 4px;"></div>
+    </div>
+    <script>
+    var searchInput = document.getElementById("search-input");
+    var suggestionsDiv = document.getElementById("suggestions");
+
+    searchInput.addEventListener("input", function() {
+      var query = this.value.toLowerCase().trim();
+      suggestionsDiv.innerHTML = "";
+      if (!query) {
+        suggestionsDiv.style.display = "none";
+        network.unselectAll();
+        return;
+      }
+      var allNodes = nodes.get();
+      var matches = allNodes.filter(function(n) {
+        return n.label.toLowerCase().includes(query) ||
+               (n.title && n.title.toLowerCase().includes(query));
+      });
+      if (matches.length === 0) {
+        suggestionsDiv.style.display = "block";
+        suggestionsDiv.innerHTML = '<div style="padding:6px 10px;color:#e74c3c;font-size:13px;">No matches</div>';
+        network.unselectAll();
+        return;
+      }
+      suggestionsDiv.style.display = "block";
+      var matchIds = matches.map(function(n) { return n.id; });
+      network.selectNodes(matchIds);
+
+      matches.slice(0, 15).forEach(function(n) {
+        var item = document.createElement("div");
+        item.textContent = n.label;
+        item.style.cssText = "padding:6px 10px;color:white;font-size:13px;cursor:pointer;border-radius:3px;";
+        item.addEventListener("mouseenter", function() {
+          this.style.background = "#2a3a5c";
+        });
+        item.addEventListener("mouseleave", function() {
+          this.style.background = "transparent";
+        });
+        item.addEventListener("click", function() {
+          network.selectNodes([n.id]);
+          network.focus(n.id, {scale: 1.5, animation: true});
+          searchInput.value = n.label;
+          suggestionsDiv.style.display = "none";
+        });
+        suggestionsDiv.appendChild(item);
+      });
+      if (matches.length > 15) {
+        var more = document.createElement("div");
+        more.textContent = "... and " + (matches.length - 15) + " more";
+        more.style.cssText = "padding:6px 10px;color:#aaa;font-size:12px;";
+        suggestionsDiv.appendChild(more);
+      }
+    });
+
+    document.addEventListener("click", function(e) {
+      if (!document.getElementById("search-container").contains(e.target)) {
+        suggestionsDiv.style.display = "none";
+      }
+    });
+    </script>
+    """
+
+    with open(output_path) as f:
+        html = f.read()
+    html = html.replace("</body>", search_bar_html + "</body>")
+    with open(output_path, "w") as f:
+        f.write(html)
+
     print(f"\nVisualization saved to: {output_path}")
     print("Open it in your browser to explore the graph.")
 
