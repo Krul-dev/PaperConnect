@@ -132,16 +132,16 @@ def query_openalex_by_title(title, cache):
         return None
 
 
-def find_canonical_version(title, first_author, known_id, cache):
-    """Find the most-cited version of a paper on OpenAlex.
+def find_all_versions(title, first_author, known_id, cache):
+    """Find all versions of a paper on OpenAlex.
 
     Many papers exist as multiple OpenAlex records (working paper vs journal,
-    preprint vs publication). We want the canonical (most-cited) version so that
+    preprint vs publication). We want to identify all versions so that
     forward and reverse matching catches all citations.
 
     Example: Rubin 1975 (ETS, 68 cites) vs Rubin 1976 (Biometrika, 9806 cites).
     """
-    cache_key = f"canonical:{known_id}"
+    cache_key = f"all_versions:{known_id}"
     if cache_key in cache:
         return cache[cache_key]
 
@@ -161,24 +161,22 @@ def find_canonical_version(title, first_author, known_id, cache):
         resp = requests.get(url, params=params, timeout=15)
         if resp.status_code == 200:
             results = resp.json().get("results", [])
+            version_ids = []
             for w in results:
                 w_id = w.get("id", "")
                 if w_id == known_id:
                     continue
-                # Check author match (loose)
                 w_authors = w.get("authorships", [])
                 author_names = [a.get("author", {}).get("display_name", "").lower() for a in w_authors]
                 if author_last and any(author_last.lower() in name for name in author_names):
-                    # Found a more-cited version by same author
-                    if w.get("cited_by_count", 0) > 100:
-                        result = w_id
-                        cache[cache_key] = result
-                        return result
-        cache[cache_key] = None
-        return None
+                    version_ids.append(w_id)
+            cache[cache_key] = version_ids
+            return version_ids
+        cache[cache_key] = []
+        return []
     except requests.RequestException:
-        cache[cache_key] = None
-        return None
+        cache[cache_key] = []
+        return []
 
 
 def query_cited_by(openalex_id, our_ids, cache):
@@ -269,30 +267,32 @@ def build_graph(entries):
 
     # Pass 0: Find canonical (most-cited) versions for each article
     # This handles papers published in multiple venues (e.g., working paper + journal)
-    print("\n  Pass 0: Finding canonical versions...")
-    canonical_map = {}  # canonical_id -> entry key (additional IDs to check)
+    print("\n  Pass 0: Finding all versions...")
+    alt_map = {}  # alt_id -> entry key (additional IDs to check)
     for i, entry in enumerate(entries):
         if entry["key"] not in entry_data:
             continue
         data = entry_data[entry["key"]]
         oa_id = data.get("openalex_id", "")
-        canonical = find_canonical_version(
+        versions = find_all_versions(
             entry["title"], entry["first_author"], oa_id, cache
         )
-        if canonical and canonical not in openalex_map:
-            canonical_map[canonical] = entry["key"]
-            print(f"    {entry['label']}: found alternate version {canonical}")
+        for v_id in versions:
+            if v_id not in openalex_map:
+                alt_map[v_id] = entry["key"]
+        if versions:
+            print(f"    {entry['label']}: found {len(versions)} alternate version(s)")
 
         if (i + 1) % 5 == 0:
             save_cache(cache)
         time.sleep(0.12)
 
     save_cache(cache)
-    print(f"  Found {len(canonical_map)} alternate versions")
+    print(f"  Found {len(alt_map)} alternate version IDs total")
 
-    # Merge canonical IDs into our lookup map
+    # Merge all version IDs into our lookup map
     all_id_to_key = dict(openalex_map)
-    all_id_to_key.update(canonical_map)
+    all_id_to_key.update(alt_map)
     our_ids = set(all_id_to_key.keys())
 
     # Pass 1: Forward matching (referenced_works)
@@ -311,14 +311,14 @@ def build_graph(entries):
 
     print(f"  Found {forward_edges} edges from forward matching")
 
-    # Pass 2: Reverse lookup (cited_by) for both original and canonical IDs
+    # Pass 2: Reverse lookup (cited_by) for both original and alternate IDs
     all_ids_to_check = {}
     for key, data in entry_data.items():
         oa_id = data.get("openalex_id")
         if oa_id:
             all_ids_to_check[oa_id] = key
-    for canonical_id, key in canonical_map.items():
-        all_ids_to_check[canonical_id] = key
+    for alt_id, key in alt_map.items():
+        all_ids_to_check[alt_id] = key
 
     print(f"\n  Pass 2: Reverse citation lookup ({len(all_ids_to_check)} IDs)...")
     reverse_edges = 0

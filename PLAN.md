@@ -48,8 +48,8 @@
 **Objective:** Fix known issues and add usability features to the citation graph.
 
 ### Bug fixes
-- [ ] Investigate missing edge: "The estimation of multivariate normal density functions using incomplete data" should connect to other papers in the collection but doesn't — likely an OpenAlex matching issue
-- [ ] Check if similar matching failures affect other papers
+- [x] Investigate missing edge: "The estimation of multivariate normal density functions using incomplete data" — root cause was multi-version papers on OpenAlex (e.g., Rubin 1975 ETS vs Rubin 1976 Biometrika). Fixed by reworking `find_canonical_version()` into `find_all_versions()` to collect all version IDs instead of just one
+- [x] Check if similar matching failures affect other papers — fix applies globally to all papers in the collection
 
 ### New features
 - [ ] Search bar: text input to find and highlight/zoom to a node by name
