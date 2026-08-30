@@ -43,7 +43,7 @@
 
 ---
 
-## Phase 1.5: Citation Graph Improvements (CURRENT)
+## Phase 1.5: Citation Graph Improvements (DONE)
 
 **Objective:** Fix known issues and add usability features to the citation graph.
 
@@ -54,6 +54,17 @@
 ### New features
 - [x] Search bar: autocomplete dropdown that filters and highlights matching nodes, click to zoom
 - [x] Timeline view: static matplotlib timeline (papers on year axis with citation arrows), accessible via overlay button in the main graph page
+
+---
+
+## Phase 1.6: Collection Analysis (CURRENT)
+
+**Objective:** Use the citation graph to understand the collection's strengths, gaps, and guide what to read or add next.
+
+### Tasks
+- [x] Year distribution analysis: identified thin spots in 1980-1999 (practical MI era), 2000-2014 (ML bridge — only 6 relevant papers), and 2015-2018 (early deep learning imputation like GAIN/BRITS)
+- [x] OpenAlex search tool (`search_papers.py`): searches by topic + year range, filters out papers already in collection, sorted by citations. Logs all searches to `search_log.csv` for methodology traceability
+- [ ] Extraction matrix template: build a structured CSV/table matching Phase 2 columns, ready to fill in as the team reads papers
 
 ---
 

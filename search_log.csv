@@ -1,0 +1,4 @@
+date,query,year_from,year_to,title,authors,year,citations,doi,status
+2026-08-30,GAIN BRITS GRU-D recurrent imputation,2017,2021,Handling missing data in near real-time environmental monitoring: A system and a review of selected methods,"Yifan Zhang, Peter J. Thorburn",2021,174,https://doi.org/10.1016/j.future.2021.09.033,
+2026-08-30,GAIN BRITS GRU-D recurrent imputation,2017,2021,Evaluating the state of the art in missing data imputation for clinical data,Yuan Luo,2021,129,https://doi.org/10.1093/bib/bbab489,
+2026-08-30,GAIN BRITS GRU-D recurrent imputation,2017,2021,Temporal pointwise convolutional networks for length of stay prediction in the intensive care unit,"Emma Rocheteau, Pietro Liò, Stephanie Hyland",2021,58,https://doi.org/10.1145/3450439.3451860,
