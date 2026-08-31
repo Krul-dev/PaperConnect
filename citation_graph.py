@@ -19,7 +19,7 @@ from pyvis.network import Network
 
 from paperconnect.openalex import (
     load_cache, save_cache, query_by_doi, query_by_title,
-    find_all_versions, query_cited_by,
+    query_by_id, find_all_versions, query_cited_by,
 )
 
 
@@ -31,6 +31,7 @@ def parse_bib(path):
     """Parse .bib file and return list of entries with key, title, doi, year, authors."""
     with open(path, encoding="utf-8") as f:
         parser = bibtexparser.bparser.BibTexParser(common_strings=True)
+        parser.ignore_nonstandard_types = False
         library = bibtexparser.load(f, parser=parser)
 
     entries = []
@@ -42,7 +43,7 @@ def parse_bib(path):
         authors_raw = entry.get("author", "")
         first_author = authors_raw.split(" and ")[0].split(",")[0].strip() if authors_raw else ""
 
-        year = entry.get("year", "")
+        year = entry.get("year", "") or entry.get("date", "")[:4]
         title = entry.get("title", "").replace("{", "").replace("}", "")
 
         label = f"{first_author} {year}" if first_author else title[:30]
@@ -130,6 +131,15 @@ def build_graph(entries):
         for v_id in versions:
             if v_id not in openalex_map:
                 alt_map[v_id] = entry["key"]
+
+            # If the original has no references, pull them from the alternate
+            if not data.get("referenced_works"):
+                alt_data = query_by_id(v_id, cache)
+                if alt_data and alt_data.get("referenced_works"):
+                    entry_data[entry["key"]]["referenced_works"] = alt_data["referenced_works"]
+                    print(f"    {entry['label']}: got {len(alt_data['referenced_works'])} refs from alternate version")
+                time.sleep(0.12)
+
         if versions:
             print(f"    {entry['label']}: found {len(versions)} alternate version(s)")
 

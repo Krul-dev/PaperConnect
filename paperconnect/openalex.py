@@ -89,6 +89,33 @@ def query_by_title(title, cache):
         return None
 
 
+def query_by_id(openalex_id, cache):
+    """Fetch a work's referenced_works by its OpenAlex ID."""
+    cache_key = f"id:{openalex_id}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    short_id = openalex_id.replace("https://openalex.org/", "")
+    url = f"{OPENALEX_BASE}/works/{short_id}"
+    params = {"select": "id,title,referenced_works", "mailto": POLITE_EMAIL}
+
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            result = {
+                "openalex_id": data.get("id", ""),
+                "referenced_works": data.get("referenced_works", []),
+                "title": data.get("title", ""),
+            }
+            cache[cache_key] = result
+            return result
+        cache[cache_key] = None
+        return None
+    except requests.RequestException:
+        return None
+
+
 def find_all_versions(title, first_author, known_id, cache):
     """Find all versions of a paper on OpenAlex.
 

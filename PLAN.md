@@ -50,6 +50,8 @@
 ### Bug fixes
 - [x] Investigate missing edge: "The estimation of multivariate normal density functions using incomplete data" — root cause was multi-version papers on OpenAlex (e.g., Rubin 1975 ETS vs Rubin 1976 Biometrika). Fixed by reworking `find_canonical_version()` into `find_all_versions()` to collect all version IDs instead of just one
 - [x] Check if similar matching failures affect other papers — fix applies globally to all papers in the collection
+- [x] Fix isolated preprints (e.g., Mahmud 2025 ImpuGAN): arXiv versions often have 0 references on OpenAlex. Now fetches references from published alternate versions when the original has none
+- [x] Fix .bib parser compatibility with Zotero re-exports: handle `date` field (not just `year`) and accept non-standard entry types like `@report` (Dempster 1977, Murray 1979, etc. were being silently skipped)
 
 ### New features
 - [x] Search bar: autocomplete dropdown that filters and highlights matching nodes, click to zoom
