@@ -66,6 +66,7 @@
 ### Tasks
 - [x] Year distribution analysis: identified thin spots in 1980-1999 (practical MI era), 2000-2014 (ML bridge — only 6 relevant papers), and 2015-2018 (early deep learning imputation like GAIN/BRITS)
 - [x] OpenAlex search tool (`search_papers.py`): searches by topic + year range, filters out papers already in collection, sorted by citations. Logs all searches to `search_log.csv` for methodology traceability
+- [x] Candidate paper triage: used NotebookLM to compare candidate papers (from search tool) against current collection. 3-step process: (1) baseline analysis of current collection's coverage and blind spots, (2) novelty filter to find candidates that fill gaps, (3) generate ADD/SKIP verdicts with rationale. Results saved to `candidates_veredict.csv`. Updated `.bib` with accepted papers.
 - [ ] Extraction matrix template: build a structured CSV/table matching Phase 2 columns, ready to fill in as the team reads papers
 
 ---
