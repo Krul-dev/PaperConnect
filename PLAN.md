@@ -55,7 +55,11 @@
 
 ### New features
 - [x] Search bar: autocomplete dropdown that filters and highlights matching nodes, click to zoom
-- [x] Timeline view: static matplotlib timeline (papers on year axis with citation arrows), accessible via overlay button in the main graph page
+- [x] Timeline view: static matplotlib timeline (papers on year axis with citation arrows)
+- [x] View switcher: top-right menu toggles between "Interactive View" (graph) and "Timeline View" (timeline) — replaces the old overlay approach
+- [x] Click-to-highlight: clicking a node dims all unconnected nodes/edges, highlights the selected node and its neighbors. Click empty space to restore.
+- [x] Color legend: always-visible legend (bottom-left) showing era colors in both views
+- [x] Improved node spacing: stronger repulsion and longer springs to reduce overlap
 
 ---
 
@@ -96,10 +100,11 @@ NotebookLM found 11 candidate papers across 4 themes:
 **Known gap in the 11 candidates:** All are post-2018. Missing the older foundational work (1990s-2010s) on pattern-mixture models, selection models, and early MNAR theory that the newer papers build on. Plan: after reviewing the 11 candidates, run a second NotebookLM deep search targeting pre-2018 foundations.
 
 - [x] NotebookLM deep search #1: modern bridge papers (2018-2025) — 11 candidates found
-- [ ] Review and triage the 11 candidates (Valeria reading now)
+- [x] Review and triage the 11 candidates — 6 accepted, 5 skipped. Added to Zotero and .bib.
+  - ADD: #1 NARFCS (Tompsett 2018), #3 FragmGAN (Fang 2023), #5 MIWAE (Mattei 2019), #6 not-MIWAE (Ipsen 2021), #8 PSMVAE (Ghalebikesabi 2021), #10 Beyond Accuracy (2025)
+  - SKIP: #2 Tipping Point, #4 Nazábal VAE, #7 GNR, #9 IVGAE, #11 van Buuren
 - [ ] NotebookLM deep search #2: pre-2018 foundational MNAR/pattern-mixture/selection model theory
 - [ ] Triage second batch of candidates
-- [ ] Add accepted papers to Zotero and update .bib
 - [ ] Re-run citation graph to verify the bridge connects
 
 ### Gap 2: Imputation uncertainty propagation (high priority)

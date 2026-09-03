@@ -304,7 +304,7 @@ def visualize(G, entries, output_path):
         bgcolor="#1a1a2e",
         font_color="white",
     )
-    net.barnes_hut(gravity=-3000, spring_length=150, spring_strength=0.01)
+    net.barnes_hut(gravity=-5000, spring_length=250, spring_strength=0.005)
 
     # Color nodes by era
     def get_color(year):
@@ -360,9 +360,9 @@ def visualize(G, entries, output_path):
       },
       "physics": {
         "barnesHut": {
-          "gravitationalConstant": -3000,
-          "springLength": 150,
-          "springConstant": 0.01
+          "gravitationalConstant": -5000,
+          "springLength": 250,
+          "springConstant": 0.005
         }
       }
     }
@@ -450,31 +450,156 @@ def visualize(G, entries, output_path):
     print("  Generating timeline image...")
     timeline_b64 = generate_timeline_base64(G)
 
-    timeline_html = """
-    <button id="timeline-btn" onclick="document.getElementById('timeline-overlay').style.display='flex'"
-      style="position:fixed; top:15px; right:15px; z-index:1000;
-      background:#16213e; color:white; border:1px solid #555; padding:8px 16px;
-      border-radius:8px; cursor:pointer; font-size:14px;
-      box-shadow:0 2px 10px rgba(0,0,0,0.5);"
-      onmouseenter="this.style.background='#2a3a5c'"
-      onmouseleave="this.style.background='#16213e'">
-      Timeline View
-    </button>
-    <div id="timeline-overlay" style="
-      display:none; position:fixed; top:0; left:0; width:100%%; height:100%%;
-      background:rgba(0,0,0,0.85); z-index:2000;
-      flex-direction:column; align-items:center; justify-content:center;">
-      <button onclick="document.getElementById('timeline-overlay').style.display='none'"
-        style="position:absolute; top:20px; right:30px; background:none;
-        border:none; color:white; font-size:28px; cursor:pointer;">&#x2715;</button>
-      <img src="data:image/png;base64,%s" style="max-width:95%%; max-height:90%%;
-        object-fit:contain; border-radius:8px;">
+    view_switcher_html = """
+    <div id="view-menu" style="
+        position:fixed; top:15px; right:15px; z-index:1000;
+        background:#16213e; border-radius:8px; overflow:hidden;
+        box-shadow:0 2px 10px rgba(0,0,0,0.5); display:flex;
+        border:1px solid #555;">
+      <button id="btn-interactive" onclick="switchView('interactive')" style="
+        padding:8px 16px; border:none; cursor:pointer; font-size:13px;
+        background:#3498db; color:white;">
+        Interactive View
+      </button>
+      <button id="btn-timeline" onclick="switchView('timeline')" style="
+        padding:8px 16px; border:none; cursor:pointer; font-size:13px;
+        background:#16213e; color:#aaa;">
+        Timeline View
+      </button>
     </div>
+
+    <div id="timeline-container" style="
+      display:none; position:fixed; top:0; left:0; width:100%%; height:100%%;
+      background:#1a1a2e; z-index:500;
+      flex-direction:column; align-items:center; justify-content:center;">
+      <img src="data:image/png;base64,%s" style="max-width:95%%; max-height:90%%;
+        object-fit:contain;">
+    </div>
+
+    <div id="color-legend" style="
+        position:fixed; bottom:15px; left:15px; z-index:1000;
+        background:#16213e; padding:12px 16px; border-radius:8px;
+        box-shadow:0 2px 10px rgba(0,0,0,0.5); border:1px solid #555;
+        font-size:12px; color:white; line-height:1.8;">
+      <div style="font-weight:bold; margin-bottom:4px; font-size:13px;">Color by Era</div>
+      <div><span style="display:inline-block;width:12px;height:12px;border-radius:50%%;background:#e74c3c;margin-right:6px;vertical-align:middle;"></span>Foundational (pre-1980)</div>
+      <div><span style="display:inline-block;width:12px;height:12px;border-radius:50%%;background:#f39c12;margin-right:6px;vertical-align:middle;"></span>Classical (1980-1999)</div>
+      <div><span style="display:inline-block;width:12px;height:12px;border-radius:50%%;background:#2ecc71;margin-right:6px;vertical-align:middle;"></span>Traditional ML (2000-2014)</div>
+      <div><span style="display:inline-block;width:12px;height:12px;border-radius:50%%;background:#3498db;margin-right:6px;vertical-align:middle;"></span>Early Deep Learning (2015-2021)</div>
+      <div><span style="display:inline-block;width:12px;height:12px;border-radius:50%%;background:#9b59b6;margin-right:6px;vertical-align:middle;"></span>Recent / Generative (2022+)</div>
+    </div>
+
+    <script>
+    function switchView(view) {
+      var graphDiv = document.getElementById("mynetwork");
+      var timelineDiv = document.getElementById("timeline-container");
+      var searchDiv = document.getElementById("search-container");
+      var btnInteractive = document.getElementById("btn-interactive");
+      var btnTimeline = document.getElementById("btn-timeline");
+
+      if (view === "timeline") {
+        graphDiv.style.display = "none";
+        searchDiv.style.display = "none";
+        timelineDiv.style.display = "flex";
+        btnTimeline.style.background = "#3498db";
+        btnTimeline.style.color = "white";
+        btnInteractive.style.background = "#16213e";
+        btnInteractive.style.color = "#aaa";
+      } else {
+        timelineDiv.style.display = "none";
+        graphDiv.style.display = "block";
+        searchDiv.style.display = "block";
+        btnInteractive.style.background = "#3498db";
+        btnInteractive.style.color = "white";
+        btnTimeline.style.background = "#16213e";
+        btnTimeline.style.color = "#aaa";
+      }
+    }
+    </script>
     """ % timeline_b64
+
+    highlight_js = """
+    <script>
+    (function() {
+      var originalColors = {};
+      var originalEdgeColors = {};
+
+      function storeOriginals() {
+        nodes.get().forEach(function(n) {
+          originalColors[n.id] = { color: n.color, font: n.font };
+        });
+        edges.get().forEach(function(e) {
+          originalEdgeColors[e.id] = e.color;
+        });
+      }
+
+      network.once("stabilized", storeOriginals);
+      setTimeout(storeOriginals, 3000);
+
+      function restoreAll() {
+        var updatedNodes = [];
+        nodes.get().forEach(function(n) {
+          var orig = originalColors[n.id];
+          if (orig) {
+            updatedNodes.push({id: n.id, color: orig.color, font: {color: "white"}});
+          }
+        });
+        nodes.update(updatedNodes);
+
+        var updatedEdges = [];
+        edges.get().forEach(function(e) {
+          updatedEdges.push({id: e.id, color: originalEdgeColors[e.id] || "#555555"});
+        });
+        edges.update(updatedEdges);
+      }
+
+      network.on("selectNode", function(params) {
+        if (params.nodes.length === 0) return;
+        var selectedId = params.nodes[0];
+        var connected = network.getConnectedNodes(selectedId);
+        connected.push(selectedId);
+
+        var updatedNodes = [];
+        nodes.get().forEach(function(n) {
+          if (connected.indexOf(n.id) !== -1) {
+            var orig = originalColors[n.id];
+            updatedNodes.push({
+              id: n.id,
+              color: orig ? orig.color : n.color,
+              font: {color: "white"}
+            });
+          } else {
+            updatedNodes.push({
+              id: n.id,
+              color: "rgba(80,80,80,0.15)",
+              font: {color: "rgba(255,255,255,0.1)"}
+            });
+          }
+        });
+        nodes.update(updatedNodes);
+
+        var updatedEdges = [];
+        edges.get().forEach(function(e) {
+          if (e.from === selectedId || e.to === selectedId) {
+            updatedEdges.push({id: e.id, color: {color: "#ffffff", opacity: 0.8}});
+          } else {
+            updatedEdges.push({id: e.id, color: {color: "#555555", opacity: 0.03}});
+          }
+        });
+        edges.update(updatedEdges);
+      });
+
+      network.on("deselectNode", restoreAll);
+      network.on("click", function(params) {
+        if (params.nodes.length === 0) restoreAll();
+      });
+    })();
+    </script>
+    """
 
     with open(output_path) as f:
         html = f.read()
-    html = html.replace("</body>", search_bar_html + timeline_html + "</body>")
+    html = html.replace("</body>", search_bar_html + view_switcher_html + highlight_js + "</body>")
     with open(output_path, "w") as f:
         f.write(html)
 
