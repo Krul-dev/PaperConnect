@@ -59,3 +59,4 @@ date,query,year_from,year_to,title,authors,year,citations,doi,status
 2026-08-30,variational autoencoder imputation missing data,2017,2021,Single-Cell RNA-Seq Technologies and Related Computational Data Analysis,"Geng Chen, Baitang Ning, Tieliu Shi",2019,1007,https://doi.org/10.3389/fgene.2019.00317,
 2026-08-30,variational autoencoder imputation missing data,2017,2021,"Deep learning in cancer diagnosis, prognosis and treatment selection","Khoa Tran, Olga Kondrashova, Andrew P. Bradley et al.",2021,950,https://doi.org/10.1186/s13073-021-00968-x,
 2026-08-30,variational autoencoder imputation missing data,2017,2021,Using machine learning approaches for multi-omics data analysis: A review,"Parminder Singh Reel, Smarti Reel, Ewan R. Pearson et al.",2021,918,https://doi.org/10.1016/j.biotechadv.2021.107739,
+
