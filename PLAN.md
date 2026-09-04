@@ -103,9 +103,11 @@ NotebookLM found 11 candidate papers across 4 themes:
 - [x] Review and triage the 11 candidates — 6 accepted, 5 skipped. Added to Zotero and .bib.
   - ADD: #1 NARFCS (Tompsett 2018), #3 FragmGAN (Fang 2023), #5 MIWAE (Mattei 2019), #6 not-MIWAE (Ipsen 2021), #8 PSMVAE (Ghalebikesabi 2021), #10 Beyond Accuracy (2025)
   - SKIP: #2 Tipping Point, #4 Nazábal VAE, #7 GNR, #9 IVGAE, #11 van Buuren
-- [ ] NotebookLM deep search #2: pre-2018 foundational MNAR/pattern-mixture/selection model theory
-- [ ] Triage second batch of candidates
-- [ ] Re-run citation graph to verify the bridge connects
+- [x] NotebookLM deep search #2: pre-2018 foundational MNAR/pattern-mixture/selection model theory — results in `Notebooklm/classical-theoretical-foundations.md`. Report covers 4 areas: selection vs. pattern-mixture models, MNAR taxonomy, sensitivity analysis origins, and ignorability foundations.
+- [x] Triage second batch — 5 accepted. Added to Zotero and .bib.
+  - ADD: Little (1993) pattern-mixture models, Diggle & Kenward (1994) informative dropout, Little (1995) dropout taxonomy, Scharfstein, Rotnitzky & Robins (1999) semiparametric sensitivity, Carpenter, Kenward & White (2007) delta-adjustment method
+  - Already in collection: Rubin (1976), Little & Rubin (1987/2002), Dempster et al. (1977), Heckman (1976, 1979)
+- [x] Re-run citation graph to verify the bridge connects
 
 ### Gap 2: Imputation uncertainty propagation (high priority)
 - [ ] Search for papers on Rubin's pooling rules applied to deep learning, conformal prediction intervals for time series imputation
