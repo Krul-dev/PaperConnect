@@ -108,6 +108,10 @@ NotebookLM found 11 candidate papers across 4 themes:
   - ADD: Little (1993) pattern-mixture models, Diggle & Kenward (1994) informative dropout, Little (1995) dropout taxonomy, Scharfstein, Rotnitzky & Robins (1999) semiparametric sensitivity, Carpenter, Kenward & White (2007) delta-adjustment method
   - Already in collection: Rubin (1976), Little & Rubin (1987/2002), Dempster et al. (1977), Heckman (1976, 1979)
 - [x] Re-run citation graph to verify the bridge connects
+- [x] Manual reference tracing: searched "neural network for imputation rubin little" and found additional relevant papers:
+  - Gupta & Lam (1996) "Estimating Missing Values Using Neural Networks" — one of the earliest papers using NNs for imputation, historical marker for when ML entered the imputation space without Rubin's theoretical grounding
+  - Rey del Castillo (2012, Eurostat WP.37) "Use of Machine Learning Methods to Impute Categorical Data" — explicitly quotes Rubin (1996) on why RMSE/hit-rate is the wrong evaluation criterion for imputation, then shows ML classifiers beating MI on exactly that metric (87% vs 66%). Perfect illustration of the inference-vs-accuracy tension.
+  - Richard & Lippmann (1991) "Neural Network Classifiers Estimate Bayesian a posteriori Probabilities" (found via Hanson 1992 references) — proves NN classifiers approximate Bayesian posteriors. The equivalent theorem for NN *imputation* (proving convergence to Rubin-valid posterior predictive distributions) appears not to exist yet — this is a key observation for the discussion section.
 
 ### Gap 2: Imputation uncertainty propagation (high priority)
 - [ ] Search for papers on Rubin's pooling rules applied to deep learning, conformal prediction intervals for time series imputation
